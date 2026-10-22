@@ -1,0 +1,323 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Стискач PDF</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one narrow working column — drop zone, then a result sheet with a size gauge against the limit */
+:root{
+  --bg:#f3f5f8; --surface:#ffffff; --ink:#14202e; --muted:#5b6878; --line:#d7dde5;
+  --accent:#1d4f8f; --accent-ink:#ffffff; --ok:#1f7a4d; --warn:#b5541b; --track:#e6eaf0;
+  --f-body:"Golos Text",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f151d; --surface:#161f2a; --ink:#e6ebf1; --muted:#97a3b2; --line:#2a3646;
+  --accent:#6fa3e6; --accent-ink:#0b1420; --ok:#4fc28a; --warn:#ef9a62; --track:#223040; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f151d; --surface:#161f2a; --ink:#e6ebf1; --muted:#97a3b2; --line:#2a3646;
+  --accent:#6fa3e6; --accent-ink:#0b1420; --ok:#4fc28a; --warn:#ef9a62; --track:#223040; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--f-body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:32px 48px}
+main{max-width:680px;margin:0 auto;display:grid;gap:20px}
+h1{font-size:28px;line-height:1.2;margin:0;font-weight:700;text-wrap:balance;letter-spacing:-.01em}
+.lede{color:var(--muted);margin:6px 0 0;max-width:62ch}
+.drop{display:grid;place-items:center;gap:10px;text-align:center;padding:36px 20px;border:2px dashed var(--line);
+  border-radius:10px;background:var(--surface);cursor:pointer;transition:border-color .15s,background .15s}
+.drop:hover,.drop.over,.drop:focus-within{border-color:var(--accent)}
+.drop strong{font-size:17px}
+.drop span{color:var(--muted);font-size:13px}
+.drop input{position:absolute;width:1px;height:1px;opacity:0}
+.btn{font:600 15px var(--f-body);border:0;border-radius:8px;padding:11px 18px;background:var(--accent);color:var(--accent-ink);cursor:pointer}
+.btn:focus-visible,.drop:focus-within{outline:3px solid color-mix(in srgb,var(--accent) 45%,transparent);outline-offset:2px}
+.btn[disabled]{opacity:.5;cursor:default}
+.btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--line)}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.limit{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:14px}
+.limit input{width:80px;font:600 15px var(--f-mono);padding:7px 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink)}
+.sheet{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:20px;display:grid;gap:16px}
+.file{font-weight:600;word-break:break-all}
+.label{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.gauge{display:grid;gap:8px}
+.bar{position:relative;height:14px;border-radius:7px;background:var(--track);overflow:hidden}
+.bar i{position:absolute;inset:0 auto 0 0;border-radius:7px;background:var(--muted);opacity:.35}
+.bar b{position:absolute;inset:0 auto 0 0;border-radius:7px;background:var(--ok);transition:width .4s}
+.bar b.over{background:var(--warn)}
+.bar u{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink)}
+.nums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.nums div{display:grid;gap:2px}
+.nums em{font:600 20px var(--f-mono);font-style:normal;font-variant-numeric:tabular-nums}
+.status{padding:10px 12px;border-radius:8px;font-weight:500;background:color-mix(in srgb,var(--ok) 12%,transparent);color:var(--ok)}
+.status.warn{background:color-mix(in srgb,var(--warn) 14%,transparent);color:var(--warn)}
+.progress{display:grid;gap:6px}
+.progress .bar b{background:var(--accent)}
+.meta{font:13px var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.notes{color:var(--muted);font-size:14px;display:grid;gap:6px}
+.notes p{margin:0;max-width:65ch}
+.err{color:var(--warn);font-weight:500}
+@media (max-width:480px){.nums{grid-template-columns:1fr 1fr}h1{font-size:24px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<main>
+  <header>
+    <h1>Стискач PDF</h1>
+    <p class="lede">Для PDF, де текст експортовано кривими (типово для макетів журналів і збірників). Кожна унікальна літера зберігається один раз і перевикористовується. Текст лишається векторним, фото не перестискаються. Файл обробляється лише у вашому браузері й нікуди не надсилається.</p>
+  </header>
+
+  <label class="drop" id="drop">
+    <input type="file" id="file" accept="application/pdf,.pdf">
+    <strong>Перетягніть PDF сюди або натисніть, щоб вибрати</strong>
+    <span>Великий файл (30 МБ і більше) обробляється 10–30 секунд</span>
+  </label>
+
+  <div class="row">
+    <label class="limit" for="limit">Ліміт розміру, МБ <input id="limit" type="number" min="1" step="0.5" value="10"></label>
+  </div>
+
+  <section class="sheet" id="sheet" aria-live="polite">
+    <div>
+      <div class="label" id="sheetLabel">Приклад результату</div>
+      <div class="file" id="fname">Контури_інформаційної_безпеки_1_2026.pdf</div>
+    </div>
+    <div class="progress" id="progress" hidden>
+      <div class="bar"><b id="pbar" style="width:0%"></b></div>
+      <div class="meta" id="ptext">Читаю файл…</div>
+    </div>
+    <div class="gauge" id="gauge">
+      <div class="bar" id="gbar"><i id="gOrig" style="width:100%"></i><b id="gNew" style="width:27%"></b><u id="gLim" style="left:32.5%"></u></div>
+      <div class="meta" id="gLegend">сіре — було · кольорове — стало · риска — ліміт</div>
+    </div>
+    <div class="nums">
+      <div><span class="label">Було</span><em id="nOrig">30,2 МБ</em></div>
+      <div><span class="label">Стало</span><em id="nNew">8,3 МБ</em></div>
+      <div><span class="label">Зменшення</span><em id="nRatio">−73%</em></div>
+    </div>
+    <div class="status" id="status">Вкладається в ліміт 10 МБ.</div>
+    <div class="meta" id="stats">89 сторінок · 135 299 літер-кривих · 1 038 унікальних форм</div>
+    <div class="row" id="actions" hidden>
+      <button class="btn" id="save" type="button">Зберегти стиснутий PDF</button>
+      <button class="btn ghost" id="again" type="button">Інший файл</button>
+    </div>
+    <div class="err" id="err" hidden></div>
+  </section>
+
+  <div class="notes">
+    <p><strong>Коли допоможе.</strong> Якщо розмір файлу дає текст, збережений як криві (outlines): сотні тисяч однакових контурів літер. Саме так був влаштований збірник «Контури інформаційної безпеки».</p>
+    <p><strong>Коли не допоможе.</strong> Якщо файл важкий через фотографії або шрифти вже вбудовані. Тоді інструмент повідомить, що стискати нічого, і краще зменшити роздільність зображень під час експорту.</p>
+  </div>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script>
+// Core: dedupe outlined-text glyphs into reusable Form XObjects.
+async function compressPdf(bytes, PDFLib, onProgress) {
+  const { PDFDocument, PDFName, PDFArray, PDFDict, PDFRef, PDFRawStream, PDFNumber, decodePDFRawStream } = PDFLib;
+  const doc = await PDFDocument.load(bytes, { updateMetadata: false, ignoreEncryption: false });
+  const ctx = doc.context;
+  const PATH_OPS = new Set(['m', 'l', 'c', 'v', 'y', 'h', 're']);
+  const fmt = (v) => {
+    let s = v.toFixed(3);
+    if (s.indexOf('.') >= 0) s = s.replace(/0+$/, '').replace(/\.$/, '');
+    return (s === '-0' || s === '') ? '0' : s;
+  };
+  const toStr = (u8) => {
+    let s = '';
+    for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+    return s;
+  };
+  const toBytes = (s) => {
+    const u = new Uint8Array(s.length);
+    for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i) & 0xff;
+    return u;
+  };
+  const glyphs = new Map(); // key -> {ref, name}
+  let uses = 0;
+
+  function makeGlyph(rel, op) {
+    const body = [];
+    const xs = [], ys = [];
+    for (const [nums, o] of rel) {
+      if (o === 're') { const [x, y, w, h] = nums; xs.push(x, x + w); ys.push(y, y + h); }
+      else for (let i = 0; i < nums.length; i++) (i % 2 ? ys : xs).push(nums[i]);
+      body.push((nums.length ? nums.map(fmt).join(' ') + ' ' : '') + o);
+    }
+    const key = body.join('\n') + '\n' + op;
+    const hit = glyphs.get(key);
+    if (hit) return hit;
+    if (!xs.length) { xs.push(0); ys.push(0); }
+    const bbox = [Math.min(...xs) - 1, Math.min(...ys) - 1, Math.max(...xs) + 1, Math.max(...ys) + 1]
+      .map((b) => Math.round(b * 100) / 100);
+    const stream = ctx.flateStream(toBytes(key), { Type: 'XObject', Subtype: 'Form', BBox: bbox });
+    const g = { ref: ctx.register(stream), name: 'G' + glyphs.size };
+    glyphs.set(key, g);
+    return g;
+  }
+
+  function process(data) {
+    const out = [];
+    const used = new Map();
+    let path = [];
+    const flush = (paintLine) => {
+      const op = paintLine.trim();
+      const markers = [];
+      for (let i = 0; i < path.length - 1; i++)
+        if (path[i][1] === 'm' && path[i + 1][1] === 'h' && path[i + 1][0].length === 0) markers.push(i);
+      if (!markers.length) { for (const p of path) out.push(p[2]); out.push(paintLine); return; }
+      if (markers[0] > 0) { for (const p of path.slice(0, markers[0])) out.push(p[2]); out.push(paintLine); }
+      const bounds = markers.concat([path.length]);
+      for (let k = 0; k < bounds.length - 1; k++) {
+        const a = bounds[k], b = bounds[k + 1];
+        const [ox, oy] = path[a][0];
+        const seg = path.slice(a + 2, b);
+        if (!seg.length) continue;
+        const rel = seg.map(([nums, o]) => o === 're'
+          ? [[nums[0] - ox, nums[1] - oy, nums[2], nums[3]], o]
+          : [nums.map((n, i) => n - (i % 2 ? oy : ox)), o]);
+        const g = makeGlyph(rel, op);
+        used.set(g.name, g.ref);
+        uses++;
+        out.push('q 1 0 0 1 ' + fmt(ox) + ' ' + fmt(oy) + ' cm /' + g.name + ' Do Q');
+      }
+    };
+    for (const line of data.split('\n')) {
+      const s = line.trim();
+      const parts = s.split(' ');
+      const op = parts[parts.length - 1];
+      if (PATH_OPS.has(op)) {
+        const nums = [];
+        let ok = true;
+        for (let i = 0; i < parts.length - 1; i++) {
+          const t = parts[i];
+          const n = t === '' ? NaN : Number(t);
+          if (!Number.isFinite(n)) { ok = false; break; }
+          nums.push(n);
+        }
+        if (ok) { path.push([nums, op, line]); continue; }
+      }
+      if (path.length) {
+        if (op === 'f' || op === 'f*') { flush(line); path = []; continue; }
+        for (const p of path) out.push(p[2]);
+        path = [];
+      }
+      out.push(line);
+    }
+    for (const p of path) out.push(p[2]);
+    return { text: out.join('\n'), used };
+  }
+
+  const pages = doc.getPages();
+  for (let pi = 0; pi < pages.length; pi++) {
+    const node = pages[pi].node;
+    const contents = node.get(PDFName.of('Contents'));
+    if (!contents) continue;
+    const refs = contents instanceof PDFArray ? contents.asArray() : [contents];
+    if (!refs.every((r) => r instanceof PDFRef)) continue;
+    let ok = true;
+    const chunks = [];
+    for (const r of refs) {
+      const st = ctx.lookup(r);
+      try {
+        const raw = st instanceof PDFRawStream ? decodePDFRawStream(st).decode() : st.getContents();
+        chunks.push(toStr(raw));
+      } catch (e) { ok = false; break; }
+    }
+    if (!ok) continue;
+    const { text, used } = process(chunks.join('\n') + '\n');
+    if (used.size) {
+      ctx.assign(refs[0], ctx.flateStream(toBytes(text)));
+      for (const r of refs.slice(1)) ctx.delete(r);
+      if (refs.length > 1) node.set(PDFName.of('Contents'), refs[0]);
+      const { Resources } = node.normalizedEntries();
+      let xo = Resources.lookupMaybe(PDFName.of('XObject'), PDFDict);
+      if (!xo) { xo = ctx.obj({}); Resources.set(PDFName.of('XObject'), xo); }
+      for (const [name, ref] of used) xo.set(PDFName.of(name), ref);
+    }
+    if (onProgress) await onProgress(pi + 1, pages.length);
+  }
+  const out = await doc.save({ useObjectStreams: true, addDefaultPage: false });
+  return { bytes: out, pages: pages.length, uses, unique: glyphs.size };
+}
+
+(function(){
+  const $=id=>document.getElementById(id);
+  const mb=b=>(b/1048576).toLocaleString('uk-UA',{maximumFractionDigits:1,minimumFractionDigits:1})+' МБ';
+  const nf=n=>n.toLocaleString('uk-UA');
+  let result=null, srcName='', lastSizes=null;
+  let downloads=null;
+  if(window.claude&&window.claude.use){window.claude.use('downloads').then(d=>{downloads=d}).catch(()=>{});}
+
+  function limitBytes(){const v=parseFloat($('limit').value);return (v>0?v:10)*1048576;}
+  function renderGauge(orig,neu){
+    lastSizes=[orig,neu];
+    const lim=limitBytes(), max=Math.max(orig,lim)*1.02;
+    $('gOrig').style.width=(orig/max*100)+'%';
+    $('gNew').style.width=(neu/max*100)+'%';
+    $('gLim').style.left=(lim/max*100)+'%';
+    const over=neu>lim;
+    $('gNew').classList.toggle('over',over);
+    $('nOrig').textContent=mb(orig); $('nNew').textContent=mb(neu);
+    $('nRatio').textContent=(neu<orig?'−':'+')+Math.abs(Math.round((1-neu/orig)*100))+'%';
+    const st=$('status'); st.classList.toggle('warn',over);
+    const limTxt=($('limit').value||'10')+' МБ';
+    st.textContent=over?('Не вкладається в ліміт '+limTxt+'. Залишок, найімовірніше, займають зображення: їх варто зменшити під час експорту з макета.'):('Вкладається в ліміт '+limTxt+'.');
+  }
+  $('limit').addEventListener('input',()=>{if(lastSizes)renderGauge(...lastSizes);});
+
+  async function handle(file){
+    if(!file)return;
+    if(!/\.pdf$/i.test(file.name)&&file.type!=='application/pdf'){showErr('Це не PDF. Виберіть файл із розширенням .pdf.');return;}
+    result=null; srcName=file.name;
+    $('err').hidden=true; $('actions').hidden=true; $('gauge').hidden=true; $('status').hidden=true;
+    $('sheetLabel').textContent='Обробка'; $('fname').textContent=file.name;
+    $('nOrig').textContent=mb(file.size); $('nNew').textContent='—'; $('nRatio').textContent='—';
+    $('stats').textContent=''; $('progress').hidden=false; $('pbar').style.width='0%'; $('ptext').textContent='Читаю файл…';
+    await new Promise(r=>setTimeout(r,30));
+    try{
+      const bytes=new Uint8Array(await file.arrayBuffer());
+      const r=await compressPdf(bytes,PDFLib,async(i,n)=>{
+        $('pbar').style.width=(i/n*100)+'%'; $('ptext').textContent='Сторінка '+i+' з '+n;
+        await new Promise(res=>setTimeout(res,0));
+      });
+      $('ptext').textContent='Готово';
+      $('progress').hidden=true; $('gauge').hidden=false; $('status').hidden=false;
+      $('sheetLabel').textContent='Результат';
+      $('stats').textContent=nf(r.pages)+' сторінок · '+nf(r.uses)+' літер-кривих · '+nf(r.unique)+' унікальних форм';
+      if(r.uses===0||r.bytes.length>=bytes.length*0.97){
+        renderGauge(bytes.length,Math.min(r.bytes.length,bytes.length));
+        const st=$('status'); st.classList.add('warn');
+        st.textContent='У цьому файлі текст не збережено кривими, тож цей спосіб майже нічого не дає. Розмір, найімовірніше, займають зображення.';
+        $('actions').hidden=false; $('save').hidden=r.bytes.length>=bytes.length;
+        result=r.bytes.length<bytes.length?r.bytes:null; return;
+      }
+      renderGauge(bytes.length,r.bytes.length);
+      result=r.bytes; $('actions').hidden=false; $('save').hidden=false;
+    }catch(e){
+      $('progress').hidden=true;
+      showErr(/encrypt/i.test(String(e))?'Файл захищено паролем. Зніміть захист і спробуйте ще раз.':'Не вдалося обробити файл: '+(e&&e.message?e.message:e));
+    }
+  }
+  function showErr(t){const el=$('err');el.textContent=t;el.hidden=false;$('actions').hidden=false;$('save').hidden=true;}
+  function outName(){return srcName.replace(/\.pdf$/i,'')+'_compressed.pdf';}
+
+  $('save').addEventListener('click',async()=>{
+    if(!result)return;
+    const blob=new Blob([result],{type:'application/pdf'});
+    if(downloads){
+      try{await downloads.save({filename:outName(),data:blob});}
+      catch(e){ if(e&&e.code!=='declined') showErr('Не вдалося зберегти файл ('+(e.code||'помилка')+'). Спробуйте ще раз.'); }
+      return;
+    }
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=outName();
+    document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},2000);
+  });
+  $('again').addEventListener('click',()=>{$('file').value='';$('file').click();});
+  $('file').addEventListener('change',e=>handle(e.target.files[0]));
+  const drop=$('drop');
+  ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over');}));
+  ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('over');}));
+  drop.addEventListener('drop',e=>handle(e.dataTransfer.files[0]));
+})();
+</script>
+
+</body></html>
